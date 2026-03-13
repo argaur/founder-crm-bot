@@ -234,8 +234,11 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await voice_file.download_to_drive(tmp_path)
 
         transcript = ai.transcribe_voice(tmp_path)
+        logger.info(f"[voice] transcript={transcript[:120]}")
+
         # classify_intent returns the string "capture" or "recall" — not a dict
         intent = ai.classify_intent(transcript)
+        logger.info(f"[voice] intent={intent}")
 
         if intent == "recall":
             # Extract contact name from transcript to know who they're asking about
@@ -266,6 +269,7 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             # Capture intent — use extract_from_voice (Hinglish-aware prompt)
             extracted = ai.extract_from_voice(transcript)
+            logger.info(f"[voice] extracted={extracted}")
             await status_msg.delete()
 
             if not extracted.get("contact_name"):
@@ -276,7 +280,10 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
 
             quality = ai.evaluate_note_quality(transcript)
-            if not quality.get("is_complete"):
+            logger.info(f"[voice] quality={quality}")
+            # Treat JSON parse errors from quality check as complete — don't block saving
+            is_complete = quality.get("is_complete", True) if "error" not in quality else True
+            if not is_complete:
                 context.user_data["pending_capture"] = {
                     "raw_text": transcript,
                     "extracted": extracted,
@@ -287,6 +294,12 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             await _save_capture(update, user_id, extracted, transcript)
 
+    except Exception as e:
+        logger.exception(f"[voice] unhandled error: {e}")
+        try:
+            await status_msg.edit_text(f"Error processing voice note: {e}", parse_mode=None)
+        except Exception:
+            await update.message.reply_text(f"Error processing voice note: {e}", parse_mode=None)
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)

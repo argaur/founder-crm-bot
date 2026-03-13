@@ -329,8 +329,8 @@ async def _send_context_brief(update: Update, rec: dict, via_callback: bool):
         ]
         brief = ai.generate_context_brief(flat, summaries)
     except Exception as e:
-        logger.error(f"Brief generation error: {e}")
-        brief = "Could not generate brief."
+        logger.error(f"Brief generation error: {e}", exc_info=True)
+        brief = f"Error: {e}"
 
     # AI output is escaped to prevent MarkdownV2 parse errors from unpredictable content
     msg = f"*Pre\\-call Brief: {md(flat['contact_name'])}*\n\n{md(brief)}"

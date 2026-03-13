@@ -68,7 +68,7 @@ def create_user(user_id: str, first_name: str, email: str, company: str):
 
 def get_user_by_telegram_id(telegram_id: int):
     """Retrieves a user based on their unique Telegram ID."""
-    formula = match({"telegram_id": str(telegram_id)})
+    formula = match({"telegram_id": int(telegram_id)})
     record = users_table.first(formula=formula)
     return record if record else None
 
@@ -76,7 +76,7 @@ def link_telegram_to_user(user_id: str, telegram_id: int):
     """Links a specific user_id (from signup) to a Telegram ID."""
     record = users_table.first(formula=match({"user_id": user_id}))
     if record:
-        return users_table.update(record["id"], {"telegram_id": str(telegram_id)})
+        return users_table.update(record["id"], {"telegram_id": int(telegram_id)})
     return None
 
 def get_all_users() -> List[Dict]:

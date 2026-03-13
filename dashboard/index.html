@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Founder CRM — Pipeline</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Base dark theme */
+    body { background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+
+    /* Scrollbar styling */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #161b22; }
+    ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+
+    /* Skeleton shimmer animation */
+    @keyframes shimmer {
+      0% { background-position: -400px 0; }
+      100% { background-position: 400px 0; }
+    }
+    .skeleton {
+      background: linear-gradient(90deg, #161b22 25%, #21262d 50%, #161b22 75%);
+      background-size: 400px 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 6px;
+    }
+
+    /* Card summary expand/collapse */
+    .summary-text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .summary-text.expanded { display: block; -webkit-line-clamp: unset; }
+
+    /* Column scroll */
+    .kanban-col { min-width: 260px; max-width: 300px; }
+
+    /* Heat badge base */
+    .badge-hot  { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+    .badge-warm { background: rgba(234,179,8,0.15);  color: #fbbf24; border: 1px solid rgba(234,179,8,0.3); }
+    .badge-cold { background: rgba(107,114,128,0.15); color: #9ca3af; border: 1px solid rgba(107,114,128,0.3); }
+
+    /* Stage column header accent */
+    .col-lead        { border-top: 2px solid #3b82f6; }
+    .col-evaluating  { border-top: 2px solid #8b5cf6; }
+    .col-proposal    { border-top: 2px solid #f59e0b; }
+    .col-negotiating { border-top: 2px solid #10b981; }
+    .col-won         { border-top: 2px solid #22c55e; }
+    .col-lost        { border-top: 2px solid #ef4444; }
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- ── CONFIG (fill these in before opening) ──────────────────────────── -->
+  <script>
+    const AIRTABLE_PAT    = "YOUR_PAT_HERE";       // Read-only PAT scoped to data.records:read
+    const AIRTABLE_BASE_ID = "YOUR_BASE_ID_HERE";  // Starts with "app..."
+    const USER_ID         = "YOUR_USER_ID_HERE";   // The user_id from /register
+    const REFRESH_INTERVAL_MS = 5 * 60 * 1000;    // Auto-refresh every 5 minutes
+  </script>
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+
+  <!-- ── HEADER ─────────────────────────────────────────────────────────── -->
+  <header class="sticky top-0 z-10 border-b border-gray-800" style="background: rgba(13,17,23,0.95); backdrop-filter: blur(8px);">
+    <div class="max-w-screen-2xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm" style="background: #3b82f6;">F</div>
+        <div>
+          <span class="font-semibold text-white">Founder CRM</span>
+          <span class="text-gray-500 text-sm ml-2">Pipeline</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 text-sm">
+        <span class="text-gray-500">Last updated: <span id="last-updated">—</span></span>
+        <button
+          id="refresh-btn"
+          onclick="loadDashboard()"
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+          style="background: #21262d; border: 1px solid #30363d; color: #e6edf3;"
+          onmouseover="this.style.background='#30363d'" onmouseout="this.style.background='#21262d'"
+        >
+          <svg id="refresh-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+            <path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+            <path d="M8 16H3v5"/>
+          </svg>
+          Refresh
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── MAIN CONTENT ───────────────────────────────────────────────────── -->
+  <main class="max-w-screen-2xl mx-auto px-4 py-6">
+
+    <!-- Error banner -->
+    <div id="error-banner" class="hidden mb-4 px-4 py-3 rounded-lg text-red-300 text-sm" style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3);">
+      Could not load data. Check console for details.
+    </div>
+
+    <!-- Stats bar -->
+    <div id="stats-bar" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <!-- Skeleton placeholders shown on load -->
+      <div class="skeleton h-20 rounded-xl"></div>
+      <div class="skeleton h-20 rounded-xl"></div>
+      <div class="skeleton h-20 rounded-xl"></div>
+      <div class="skeleton h-20 rounded-xl"></div>
+    </div>
+
+    <!-- Kanban board (horizontal scroll on mobile) -->
+    <div id="kanban-wrapper" class="overflow-x-auto pb-4">
+      <div id="kanban-board" class="flex gap-4" style="min-width: max-content;">
+        <!-- Skeleton columns -->
+        <div class="kanban-col">
+          <div class="skeleton h-8 rounded mb-3"></div>
+          <div class="skeleton h-32 rounded-xl mb-2"></div>
+          <div class="skeleton h-32 rounded-xl mb-2"></div>
+        </div>
+        <div class="kanban-col">
+          <div class="skeleton h-8 rounded mb-3"></div>
+          <div class="skeleton h-32 rounded-xl mb-2"></div>
+        </div>
+        <div class="kanban-col">
+          <div class="skeleton h-8 rounded mb-3"></div>
+          <div class="skeleton h-32 rounded-xl mb-2"></div>
+          <div class="skeleton h-32 rounded-xl mb-2"></div>
+        </div>
+        <div class="kanban-col">
+          <div class="skeleton h-8 rounded mb-3"></div>
+          <div class="skeleton h-32 rounded-xl mb-2"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Won / Lost (collapsed section) -->
+    <div id="closed-section" class="hidden mt-2">
+      <button
+        id="closed-toggle"
+        onclick="toggleClosed()"
+        class="flex items-center gap-2 text-sm text-gray-400 mb-3 hover:text-gray-200 transition-colors"
+      >
+        <svg id="closed-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition: transform 0.2s;">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+        <span id="closed-toggle-label">Show Won &amp; Lost (0)</span>
+      </button>
+      <div id="closed-board" class="hidden overflow-x-auto pb-4">
+        <div id="closed-columns" class="flex gap-4" style="min-width: max-content;"></div>
+      </div>
+    </div>
+
+    <!-- Full empty state -->
+    <div id="empty-state" class="hidden flex flex-col items-center justify-center py-24 text-center">
+      <div class="w-16 h-16 rounded-full flex items-center justify-center mb-4" style="background: #21262d;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+      </div>
+      <h3 class="text-lg font-semibold text-white mb-1">No deals yet</h3>
+      <p class="text-gray-400 text-sm max-w-xs">Forward a WhatsApp conversation to your Telegram bot to capture your first deal automatically.</p>
+    </div>
+
+  </main>
+
+  <!-- ── FOOTER ──────────────────────────────────────────────────────────── -->
+  <footer class="border-t border-gray-800 mt-8 py-4 text-center text-xs text-gray-600">
+    Powered by <a href="https://argaur.github.io/founder-crm-landing/" target="_blank" class="text-blue-500 hover:text-blue-400">Founder CRM</a>
+  </footer>
+
+  <!-- ── JAVASCRIPT ──────────────────────────────────────────────────────── -->
+  <script>
+    // ── Helpers ────────────────────────────────────────────────────────────
+
+    function heatScore(lastUpdated, interactionCount) {
+      if (!lastUpdated) return { score: 0, label: 'Cold' };
+      const days = Math.max(0, Math.floor((Date.now() - new Date(lastUpdated).getTime()) / 86400000));
+      const raw = 100 - (days * 5) + ((interactionCount || 0) * 3);
+      const score = Math.max(0, Math.min(100, raw));
+      const label = score >= 70 ? 'Hot' : score >= 40 ? 'Warm' : 'Cold';
+      return { score, label };
+    }
+
+    function timeAgo(dateStr) {
+      if (!dateStr) return 'never';
+      const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+      if (days === 0) return 'today';
+      if (days === 1) return 'yesterday';
+      return `${days} days ago`;
+    }
+
+    function heatBadge(label, score) {
+      const cls = label === 'Hot' ? 'badge-hot' : label === 'Warm' ? 'badge-warm' : 'badge-cold';
+      const dot = label === 'Hot' ? '🔥' : label === 'Warm' ? '🌡' : '❄️';
+      return `<span class="${cls} text-xs font-medium px-2 py-0.5 rounded-full">${dot} ${label} ${score}</span>`;
+    }
+
+    function escapeHtml(str) {
+      return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ── Airtable fetch ─────────────────────────────────────────────────────
+
+    async function fetchContacts() {
+      const filter = encodeURIComponent(`{user_id}='${USER_ID}'`);
+      const sort   = encodeURIComponent('last_updated');
+      const url    = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/contacts?filterByFormula=${filter}&sort[0][field]=${sort}&sort[0][direction]=desc`;
+
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${AIRTABLE_PAT}` } });
+      if (!res.ok) throw new Error(`Airtable contacts error: ${res.status}`);
+      const json = await res.json();
+      return json.records;
+    }
+
+    // ── Stats bar ──────────────────────────────────────────────────────────
+
+    function renderStats(contacts) {
+      const activeStages = ['Lead', 'Evaluating', 'Proposal Sent', 'Negotiating'];
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+      const active = contacts.filter(c => activeStages.includes(c.fields.stage));
+      const wonThisMonth = contacts.filter(c =>
+        c.fields.stage === 'Won' && c.fields.last_updated && c.fields.last_updated >= monthStart
+      );
+      const lostThisMonth = contacts.filter(c =>
+        c.fields.stage === 'Lost' && c.fields.last_updated && c.fields.last_updated >= monthStart
+      );
+
+      const scores = active.map(c => heatScore(c.fields.last_updated, c.fields.interaction_count).score);
+      const avgHeat = scores.length ? Math.round(scores.reduce((a,b) => a+b, 0) / scores.length) : 0;
+
+      const stats = [
+        { label: 'Active Deals',     value: active.length,       color: '#3b82f6' },
+        { label: 'Won This Month',   value: wonThisMonth.length,  color: '#22c55e' },
+        { label: 'Lost This Month',  value: lostThisMonth.length, color: '#ef4444' },
+        { label: 'Avg Heat Score',   value: avgHeat,              color: '#f59e0b' },
+      ];
+
+      document.getElementById('stats-bar').innerHTML = stats.map(s => `
+        <div class="rounded-xl px-4 py-4" style="background: #161b22; border: 1px solid #21262d;">
+          <div class="text-3xl font-bold" style="color: ${s.color};">${s.value}</div>
+          <div class="text-xs text-gray-400 mt-1">${s.label}</div>
+        </div>
+      `).join('');
+    }
+
+    // ── Deal card ──────────────────────────────────────────────────────────
+
+    function dealCard(contact, idx) {
+      const f = contact.fields;
+      const { score, label } = heatScore(f.last_updated, f.interaction_count);
+      const summary = escapeHtml(f.ai_summary || f.next_action || '—');
+      const name    = escapeHtml(f.name || 'Unknown');
+      const company = escapeHtml(f.company || '');
+      const ago     = timeAgo(f.last_updated);
+
+      return `
+        <div class="rounded-xl p-4 mb-2" style="background: #161b22; border: 1px solid #21262d;">
+          <div class="flex items-start justify-between gap-2 mb-2">
+            <div>
+              <div class="font-semibold text-white text-sm">${name}</div>
+              ${company ? `<div class="text-xs text-gray-400">${company}</div>` : ''}
+            </div>
+            ${heatBadge(label, score)}
+          </div>
+          <div class="text-xs text-gray-500 mb-2">${ago}</div>
+          <div
+            class="summary-text text-xs text-gray-400 leading-relaxed cursor-pointer select-none"
+            onclick="toggleSummary(this)"
+            title="Click to expand"
+          >${summary}</div>
+        </div>
+      `;
+    }
+
+    function toggleSummary(el) {
+      el.classList.toggle('expanded');
+    }
+
+    // ── Kanban column ──────────────────────────────────────────────────────
+
+    function kanbanColumn(stage, contacts, colClass) {
+      const count = contacts.length;
+      const cards = count === 0
+        ? `<div class="text-xs text-gray-600 text-center py-8">No deals in this stage</div>`
+        : contacts.map((c, i) => dealCard(c, i)).join('');
+
+      return `
+        <div class="kanban-col flex-shrink-0 ${colClass} rounded-xl p-3" style="background: #0d1117; border: 1px solid #21262d;">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-semibold text-gray-300 uppercase tracking-wider">${escapeHtml(stage)}</span>
+            <span class="text-xs font-medium px-1.5 py-0.5 rounded" style="background: #21262d; color: #8b949e;">${count}</span>
+          </div>
+          ${cards}
+        </div>
+      `;
+    }
+
+    // ── Kanban board ───────────────────────────────────────────────────────
+
+    function renderKanban(contacts) {
+      const stages = {
+        'Lead':          { contacts: [], colClass: 'col-lead' },
+        'Evaluating':    { contacts: [], colClass: 'col-evaluating' },
+        'Proposal Sent': { contacts: [], colClass: 'col-proposal' },
+        'Negotiating':   { contacts: [], colClass: 'col-negotiating' },
+      };
+      const closed = {
+        'Won':  { contacts: [], colClass: 'col-won' },
+        'Lost': { contacts: [], colClass: 'col-lost' },
+      };
+
+      contacts.forEach(c => {
+        const stage = c.fields.stage || 'Lead';
+        if (stages[stage])  stages[stage].contacts.push(c);
+        if (closed[stage]) closed[stage].contacts.push(c);
+      });
+
+      // Active Kanban
+      const board = document.getElementById('kanban-board');
+      board.innerHTML = Object.entries(stages)
+        .map(([stage, { contacts, colClass }]) => kanbanColumn(stage, contacts, colClass))
+        .join('');
+
+      // Won / Lost (collapsed section)
+      const totalClosed = closed['Won'].contacts.length + closed['Lost'].contacts.length;
+      const closedSection = document.getElementById('closed-section');
+      const closedColumns = document.getElementById('closed-columns');
+      const closedToggleLabel = document.getElementById('closed-toggle-label');
+
+      closedSection.classList.remove('hidden');
+      closedToggleLabel.textContent = `Show Won & Lost (${totalClosed})`;
+      closedColumns.innerHTML = Object.entries(closed)
+        .map(([stage, { contacts, colClass }]) => kanbanColumn(stage, contacts, colClass))
+        .join('');
+
+      // Empty state
+      const activeTotal = Object.values(stages).reduce((s, v) => s + v.contacts.length, 0);
+      if (activeTotal === 0 && totalClosed === 0) {
+        document.getElementById('kanban-wrapper').classList.add('hidden');
+        closedSection.classList.add('hidden');
+        document.getElementById('empty-state').classList.remove('hidden');
+      } else {
+        document.getElementById('kanban-wrapper').classList.remove('hidden');
+        document.getElementById('empty-state').classList.add('hidden');
+      }
+    }
+
+    // ── Won/Lost toggle ────────────────────────────────────────────────────
+
+    let closedVisible = false;
+    function toggleClosed() {
+      closedVisible = !closedVisible;
+      document.getElementById('closed-board').classList.toggle('hidden', !closedVisible);
+      const chevron = document.getElementById('closed-chevron');
+      chevron.style.transform = closedVisible ? 'rotate(90deg)' : '';
+      const label = document.getElementById('closed-toggle-label');
+      const current = label.textContent;
+      label.textContent = current.replace(/^(Show|Hide)/, closedVisible ? 'Hide' : 'Show');
+    }
+
+    // ── Refresh button spin ────────────────────────────────────────────────
+
+    let isLoading = false;
+    function setLoading(loading) {
+      isLoading = loading;
+      const icon = document.getElementById('refresh-icon');
+      const btn  = document.getElementById('refresh-btn');
+      if (loading) {
+        icon.style.animation = 'spin 1s linear infinite';
+        btn.disabled = true;
+        btn.style.opacity = '0.6';
+      } else {
+        icon.style.animation = '';
+        btn.disabled = false;
+        btn.style.opacity = '1';
+      }
+    }
+
+    // Add spin keyframe
+    const spinStyle = document.createElement('style');
+    spinStyle.textContent = '@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }';
+    document.head.appendChild(spinStyle);
+
+    // ── Main load ──────────────────────────────────────────────────────────
+
+    async function loadDashboard() {
+      if (isLoading) return;
+
+      // Config guard
+      if (AIRTABLE_PAT === 'YOUR_PAT_HERE' || AIRTABLE_BASE_ID === 'YOUR_BASE_ID_HERE' || USER_ID === 'YOUR_USER_ID_HERE') {
+        document.getElementById('error-banner').classList.remove('hidden');
+        document.getElementById('error-banner').textContent =
+          'Dashboard not configured. Open index.html and fill in AIRTABLE_PAT, AIRTABLE_BASE_ID, and USER_ID at the top of the script.';
+        document.getElementById('kanban-board').innerHTML = '';
+        document.getElementById('stats-bar').innerHTML = '';
+        return;
+      }
+
+      setLoading(true);
+      document.getElementById('error-banner').classList.add('hidden');
+
+      try {
+        const contacts = await fetchContacts();
+        renderStats(contacts);
+        renderKanban(contacts);
+        document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+      } catch (err) {
+        console.error('Dashboard load error:', err);
+        document.getElementById('error-banner').classList.remove('hidden');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    // ── Init ───────────────────────────────────────────────────────────────
+
+    loadDashboard();
+    setInterval(loadDashboard, REFRESH_INTERVAL_MS);
+  </script>
+</body>
+</html>

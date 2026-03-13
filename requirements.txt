@@ -1,0 +1,10 @@
+python-telegram-bot==21.*
+pyairtable
+anthropic
+openai
+python-dotenv
+apscheduler
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic

@@ -191,5 +191,5 @@ def log_interaction(contact_id: str, type: str, raw_content: str, ai_summary: st
 def get_interactions(contact_id: str, limit: int = 5):
     """Retrieves the most recent interactions for a contact."""
     formula = f"{{contact_id}}='{contact_id}'"
-    records = interactions_table.all(formula=formula, sort=[{"field": "logged_on", "direction": "desc"}])
+    records = interactions_table.all(formula=formula, sort=[("logged_on", "desc")])
     return records[:limit]

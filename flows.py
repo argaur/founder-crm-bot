@@ -316,11 +316,14 @@ async def image_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await status_msg.delete()
 
         if not extracted.get("contact_name"):
-            await update.message.reply_text(
-                "I couldn't extract contact info from this image\\. Try /addcontact to add manually\\.",
-                parse_mode="MarkdownV2",
-            )
-            return
+            if extracted.get("company"):
+                extracted["contact_name"] = extracted["company"]
+            else:
+                await update.message.reply_text(
+                    "I couldn't extract contact info from this image\\. Try /addcontact to add manually\\.",
+                    parse_mode="MarkdownV2",
+                )
+                return
 
         await _save_capture(update, user_id, extracted, "Contact info from screenshot", source="screenshot")
 

@@ -100,8 +100,19 @@ def extract_from_image(image_bytes: bytes, mime_type: str) -> Dict:
     """Uses Claude Vision to extract deal info from screenshots/business cards."""
     base64_image = base64.b64encode(image_bytes).decode("utf-8")
     
-    system_prompt = "Extract contact and deal info from this image (LinkedIn, Business Card, or WhatsApp profile)."
-    prompt = "Analyze this image and return the standard deal JSON structure."
+    system_prompt = """You are a sales CRM assistant for Indian B2B founders.
+Extract contact and deal info from this image (LinkedIn profile, WhatsApp contact, business card, etc).
+Return JSON with EXACTLY these fields:
+{
+  "contact_name": "full name of the individual person (string or null)",
+  "company": "company or organisation name (string or null)",
+  "role": "job title or designation (string or null)",
+  "stage": "one of: Lead, Evaluating, Proposal Sent, Negotiating, Won, Lost, unknown",
+  "summary": "one sentence describing what you see in the image",
+  "next_action": "suggested next step based on context (string or null)",
+  "budget_signal": "any pricing or budget info visible (string or null)"
+}"""
+    prompt = "Extract the contact and deal information from this image and return the JSON."
     
     return _claude_json_extract(
         prompt, 

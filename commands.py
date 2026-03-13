@@ -162,12 +162,14 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/pipeline — View full pipeline grouped by stage\n"
         "/deals — Same as /pipeline\n"
         "/context \\[name\\] — Pre\\-call brief for a contact\n"
+        "/ask \\[question\\] — Natural language pipeline query\n"
+        "/addnote — Add a note to a deal \\(guided\\)\n"
+        "/note \\[text\\] — Quick note to your most recent deal\n"
         "/won \\[name\\] — Mark a deal as Won\n"
         "/lost \\[name\\] — Mark a deal as Lost\n"
-        "/ask \\[question\\] — Natural language pipeline query\n"
         "/addcontact — Add a contact manually \\(guided\\)\n"
         "/cancel — Exit any active flow\n\n"
-        "Or just *forward a WhatsApp chat* — AI captures the deal automatically\\."
+        "Or just *forward a WhatsApp chat* or send a *voice note* — AI captures the deal automatically\\."
     )
     await update.message.reply_text(text, parse_mode="MarkdownV2")
 

@@ -305,21 +305,31 @@ async def image_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = user["fields"]["user_id"]
     status_msg = await update.message.reply_text("Reading image\\.\\.\\.", parse_mode="MarkdownV2")
 
-    # photo[-1] is always the highest resolution version
-    photo_file = await update.message.photo[-1].get_file()
-    image_bytes = await photo_file.download_as_bytearray()
+    try:
+        # photo[-1] is always the highest resolution version
+        photo_file = await update.message.photo[-1].get_file()
+        image_bytes = await photo_file.download_as_bytearray()
+        logger.info(f"[image] downloaded {len(image_bytes)} bytes")
 
-    extracted = ai.extract_from_image(bytes(image_bytes), "image/jpeg")
-    await status_msg.delete()
+        extracted = ai.extract_from_image(bytes(image_bytes), "image/jpeg")
+        logger.info(f"[image] extracted={extracted}")
+        await status_msg.delete()
 
-    if not extracted.get("contact_name"):
-        await update.message.reply_text(
-            "I couldn't extract contact info from this image\\. Try /addcontact to add manually\\.",
-            parse_mode="MarkdownV2",
-        )
-        return
+        if not extracted.get("contact_name"):
+            await update.message.reply_text(
+                "I couldn't extract contact info from this image\\. Try /addcontact to add manually\\.",
+                parse_mode="MarkdownV2",
+            )
+            return
 
-    await _save_capture(update, user_id, extracted, "Contact info from screenshot")
+        await _save_capture(update, user_id, extracted, "Contact info from screenshot", source="screenshot")
+
+    except Exception as e:
+        logger.exception(f"[image] unhandled error: {e}")
+        try:
+            await status_msg.edit_text(f"Error processing image: {e}", parse_mode=None)
+        except Exception:
+            await update.message.reply_text(f"Error processing image: {e}", parse_mode=None)
 
 
 # ─── /addnote ConversationHandler ────────────────────────────

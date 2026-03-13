@@ -70,7 +70,7 @@ async def _not_registered(update: Update):
 # ─── Core save logic (shared by all capture flows) ───────────
 
 async def _save_capture(
-    update: Update, user_id: str, extracted: dict, raw_text: str
+    update: Update, user_id: str, extracted: dict, raw_text: str, source: str = "whatsapp_forward"
 ):
     """
     Finds or creates the contact, logs the interaction, and sends
@@ -97,7 +97,7 @@ async def _save_capture(
             name=contact_name,
             company=company,
             role=role,
-            source="whatsapp_forward",
+            source=source,
             user_id=user_id,
         )
         record_id = new_rec["id"]
@@ -110,7 +110,7 @@ async def _save_capture(
     # Log the interaction (also increments interaction_count via db.log_interaction)
     db.log_interaction(
         contact_id=record_id,
-        type="whatsapp_forward",
+        type=source,
         raw_content=raw_text[:5000],
         ai_summary=summary,
         telegram_message_id=update.message.message_id,
@@ -267,7 +267,7 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
         else:
-            # Capture intent — use extract_from_voice (Hinglish-aware prompt)
+            # Capture intent — extract and save immediately, no quality gate for voice
             extracted = ai.extract_from_voice(transcript)
             logger.info(f"[voice] extracted={extracted}")
             await status_msg.delete()
@@ -279,20 +279,7 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 return
 
-            quality = ai.evaluate_note_quality(transcript)
-            logger.info(f"[voice] quality={quality}")
-            # Treat JSON parse errors from quality check as complete — don't block saving
-            is_complete = quality.get("is_complete", True) if "error" not in quality else True
-            if not is_complete:
-                context.user_data["pending_capture"] = {
-                    "raw_text": transcript,
-                    "extracted": extracted,
-                }
-                followup_q = quality.get("follow_up_question") or "Could you share more details?"
-                await update.message.reply_text(md(followup_q), parse_mode="MarkdownV2")
-                return
-
-            await _save_capture(update, user_id, extracted, transcript)
+            await _save_capture(update, user_id, extracted, transcript, source="voice_note")
 
     except Exception as e:
         logger.exception(f"[voice] unhandled error: {e}")

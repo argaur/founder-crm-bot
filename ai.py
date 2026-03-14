@@ -89,10 +89,19 @@ def extract_from_text(text: str) -> Dict:
 @retry_api_call
 def extract_from_voice(transcript: str) -> Dict:
     """Extracts deal context from voice note transcripts (handles Hinglish/informal)."""
-    system_prompt = """You are a sales assistant. The input is a transcript of an Indian founder speaking informally (Hinglish/filler words included). 
-    Extract the deal context into JSON. Stages: Lead, Evaluating, Proposal Sent, Negotiating, Won, Lost, unknown."""
-    
-    prompt = f"Extract deal data from this transcript:\n\n{transcript}"
+    system_prompt = """You are a sales assistant for Indian B2B founders. The input is a voice note transcript (may include Hinglish, filler words, or informal speech).
+Extract the deal context and return JSON with EXACTLY these fields:
+{
+  "contact_name": "full name of the person being discussed (string or null)",
+  "company": "company or organisation name (string or null)",
+  "role": "their job title or role (string or null)",
+  "stage": "one of: Lead, Evaluating, Proposal Sent, Negotiating, Won, Lost, unknown",
+  "summary": "one sentence summary of what happened in this interaction",
+  "next_action": "suggested next step (string or null)",
+  "budget_signal": "any pricing or budget info mentioned (string or null)"
+}"""
+
+    prompt = f"Extract deal data from this voice note transcript:\n\n{transcript}"
     return _claude_json_extract(prompt, system_prompt)
 
 @retry_api_call

@@ -42,8 +42,7 @@ In Railway dashboard → your service → **Variables**, add every key from `.en
    ```
    All handlers registered.
    Telegram bot is polling.
-   Nudge scheduler started.
-   Application startup complete.
+Application startup complete.
    ```
 3. Hit the health check endpoint to confirm the API is live:
    ```bash
@@ -117,12 +116,11 @@ python main.py
 
 | File | Purpose |
 |---|---|
-| `main.py` | Entry point — FastAPI app + bot polling + scheduler |
+| `main.py` | Entry point — FastAPI app + bot polling |
 | `db.py` | All Airtable read/write functions |
 | `ai.py` | Claude (text/voice/image extraction) + Whisper transcription |
 | `commands.py` | Slash command handlers |
 | `flows.py` | Capture flows (forward, voice, image, /addnote, /note) |
-| `nudges.py` | APScheduler jobs (daily digest, inactivity nudges) |
 | `dashboard/index.html` | Live Kanban dashboard (GitHub Pages) |
 | `Procfile` | Railway start command |
 | `railway.json` | Railway deploy config + health check |

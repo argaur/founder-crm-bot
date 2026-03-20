@@ -5,8 +5,6 @@ Runs two services in the same asyncio event loop:
   1. Telegram bot (python-telegram-bot v21, polling mode)
   2. FastAPI web server (uvicorn)
 
-Also starts the APScheduler nudge jobs on startup.
-
 Usage:
   python main.py          # local development
   uvicorn main:app ...    # Railway uses the FastAPI app object directly
@@ -32,7 +30,6 @@ from telegram.ext import ApplicationBuilder
 import db
 import commands
 import flows
-import nudges
 
 load_dotenv()
 
@@ -70,7 +67,7 @@ def _build_application():
     return telegram_app
 
 
-# ─── FastAPI lifespan — starts bot + scheduler ───────────────
+# ─── FastAPI lifespan ─────────────────────────────────────────
 
 telegram_app = _build_application()
 
@@ -79,11 +76,11 @@ telegram_app = _build_application()
 async def lifespan(fastapi_app: FastAPI):
     """
     FastAPI lifespan context manager.
-    On startup: initialise bot, start polling, start scheduler.
-    On shutdown: stop scheduler, stop bot.
+    On startup: initialise bot, start polling.
+    On shutdown: stop bot.
 
     This runs inside the same asyncio event loop as uvicorn, so the bot's
-    async handlers and the scheduler's async jobs all work natively.
+    async handlers all work natively.
     """
     logger.info("Starting Founder CRM bot...")
 
@@ -92,14 +89,9 @@ async def lifespan(fastapi_app: FastAPI):
     await telegram_app.updater.start_polling(drop_pending_updates=True)
     logger.info("Telegram bot is polling.")
 
-    scheduler = nudges.create_scheduler(telegram_app.bot)
-    scheduler.start()
-    logger.info("Nudge scheduler started.")
-
     yield  # FastAPI serves requests here
 
     logger.info("Shutting down...")
-    scheduler.shutdown(wait=False)
     await telegram_app.updater.stop()
     await telegram_app.stop()
     await telegram_app.shutdown()

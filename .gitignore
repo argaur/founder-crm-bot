@@ -1,5 +1,6 @@
-# Environment — NEVER commit this
+# Environment — NEVER commit these
 .env
+dashboard/config.js
 
 # Python
 __pycache__/

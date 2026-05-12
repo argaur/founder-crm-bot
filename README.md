@@ -1,127 +1,49 @@
-# Founder CRM — Bot
+# Rethink CRM — Conversation-First Sales Tool
 
-A Telegram-based sales pipeline tool for Indian B2B founders. Forward WhatsApp conversations → AI extracts deal data → stored in Airtable. No manual entry.
+> A Telegram bot that turns WhatsApp conversation context into structured CRM data — zero new app, zero context-switching.
 
----
-
-## Deployment
-
-### Step 1 — Push code to GitHub
-
-```bash
-git init
-git add .
-git commit -m "initial commit"
-gh repo create founder-crm-bot --private --source=. --push
-```
-
-### Step 2 — Deploy on Railway
-
-1. Go to [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub repo**
-2. Select `founder-crm-bot`
-3. Railway detects `Procfile` automatically — no extra config needed
-
-### Step 3 — Add environment variables
-
-In Railway dashboard → your service → **Variables**, add every key from `.env.example`:
-
-| Variable | Where to get it |
-|---|---|
-| `TELEGRAM_BOT_TOKEN` | @BotFather on Telegram |
-| `BOT_NAME` | The username you gave @BotFather (without @) |
-| `AIRTABLE_PAT` | airtable.com/account → Developer Hub → PATs |
-| `AIRTABLE_BASE_ID` | Your base URL: `airtable.com/{BASE_ID}/...` |
-| `ANTHROPIC_API_KEY` | console.anthropic.com |
-| `OPENAI_API_KEY` | platform.openai.com |
-| `APP_BASE_URL` | Set AFTER deploy — copy the Railway-provided URL |
-
-### Step 4 — Deploy and verify
-
-1. Railway auto-deploys on every push. Click **Deploy** if needed.
-2. Watch the build logs — look for:
-   ```
-   All handlers registered.
-   Telegram bot is polling.
-Application startup complete.
-   ```
-3. Hit the health check endpoint to confirm the API is live:
-   ```bash
-   curl https://your-service.up.railway.app/health
-   # → {"status": "ok"}
-   ```
-
-### Step 5 — Test the full flow
-
-```bash
-# Register a user
-curl -X POST https://your-service.up.railway.app/register \
-  -H "Content-Type: application/json" \
-  -d '{"first_name": "Gaurav", "email": "you@example.com", "company": "Rethink Systems"}'
-
-# Returns:
-# {"user_id": "...", "deep_link": "https://t.me/YourBot?start=..."}
-```
-
-Click the deep link → bot sends `/start` confirmation → you're registered.
+**Stage:** PRD · Prototype &nbsp;|&nbsp; **Stack:** Python · Telegram Bot API · Claude AI · Supabase
 
 ---
 
-## Dashboard
+## The Problem
 
-The Kanban dashboard is a standalone HTML file (`dashboard/index.html`) that reads from Airtable directly.
+60–70% of founders abandon their CRM within 4 weeks. Not because they don't care about relationships — but because CRMs demand structured input at exactly the wrong moment. Founders already manage relationships inside WhatsApp. The tool had to meet them there.
 
-**Deploy to GitHub Pages:**
+## What I Built
 
-1. Copy `dashboard/index.html` into the `argaur/founder-crm-landing` repo:
-   ```bash
-   mkdir -p ../founder-crm-landing/dashboard
-   cp dashboard/index.html ../founder-crm-landing/dashboard/index.html
-   ```
-2. In `dashboard/index.html`, fill in your Airtable credentials at the top of the script:
-   ```js
-   const AIRTABLE_PAT     = "your-read-only-pat";
-   const AIRTABLE_BASE_ID = "your-base-id";
-   const USER_ID          = "your-user-id";
-   ```
-   > Use a **separate read-only PAT** for the dashboard (scoped to `data.records:read` only).
-   > The PAT will be visible in page source to anyone with the URL.
+A Telegram bot that acts as the CRM interface. Founders forward conversation snippets, voice notes, or quick updates directly to the bot. Claude parses intent, extracts deal context (contact, stage, next action, sentiment), and writes structured records to a Supabase backend — without the founder ever opening a dashboard.
 
-3. Push and the dashboard will be live at:
-   `https://argaur.github.io/founder-crm-landing/dashboard/`
+Key design decisions:
+- **No new UI to learn** — the entire interface is a Telegram conversation
+- **AI does the structuring** — founders capture in natural language; Claude normalises it
+- **Progressive disclosure** — bot only asks clarifying questions when confidence is low
+- **Built on a 39-page PRD** informed by 10 founder interviews and analysis of 16 competing tools
 
----
+## Research
 
-## Local development
+| Method | Output |
+|--------|--------|
+| 10 founder interviews | Pain point mapping + abandonment triggers |
+| 16 CRM tools analysed | Feature gap matrix + positioning whitespace |
+| 39-page PRD | Full problem definition, user stories, system design |
 
-```bash
-# Install dependencies
-python -m venv venv
-source venv/Scripts/activate   # Windows
-pip install -r requirements.txt
+## Tech Stack
 
-# Configure environment
-cp .env.example .env
-# Fill in your values in .env
+| Layer | Choice |
+|-------|--------|
+| Bot interface | Telegram Bot API (python-telegram-bot) |
+| AI / NLP | Claude API (Anthropic) |
+| Database | Supabase (PostgreSQL) |
+| Language | Python |
+| Hosting | Railway |
 
-# Run locally
-python main.py
-# Bot starts polling + API available at http://localhost:8000
-```
+## Links
 
-> **One bot instance at a time.** If Railway is running the bot, pause it in the Railway dashboard before running locally — otherwise messages split randomly between the two instances.
+- **Landing page:** https://argaur.github.io/founder-crm-landing/
+- **Case study:** https://gauravg-portfolio.vercel.app/case-study-founder-crm.html
+- **Portfolio:** https://gauravg-portfolio.vercel.app
 
 ---
 
-## File structure
-
-| File | Purpose |
-|---|---|
-| `main.py` | Entry point — FastAPI app + bot polling |
-| `db.py` | All Airtable read/write functions |
-| `ai.py` | Claude (text/voice/image extraction) + Whisper transcription |
-| `commands.py` | Slash command handlers |
-| `flows.py` | Capture flows (forward, voice, image, /addnote, /note) |
-| `dashboard/index.html` | Live Kanban dashboard (GitHub Pages) |
-| `Procfile` | Railway start command |
-| `railway.json` | Railway deploy config + health check |
-| `.env.example` | Environment variable template |
+> Built by [Gaurav Gupta](https://linkedin.com/in/ar-gaurav) — Senior PM & AI Strategist
